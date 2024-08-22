@@ -1,44 +1,65 @@
 import streamlit as st
-from openai import OpenAI
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+from skimage.measure import label,regionprops
+from skimage import io
+from mpl_toolkits.mplot3d import Axes3D
+import cv2 as cv2
+import numpy as np
+from skimage import measure
+from stl import mesh
+from PIL import Image
 
-# Show title and description.
+import streamlit as st
+from PIL import Image
+import cv2
+import numpy as np
+
+import streamlit as st
+from PIL import Image
+import cv2
+import numpy as np
+
 st.title("📄 Document question answering")
-st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-)
+st.write("Upload an image below and ask a question about it – GPT will answer!")
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+# Let the user upload an image file via `st.file_uploader`.
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="image_uploader")
+if not uploaded_file:
+    st.info("Please upload an image to continue.", icon="🖼️")
 else:
+    # Display the uploaded image.
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Uploaded Image.', use_column_width=True)
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    # Convert the image to grayscale using OpenCV.
+    img_array = np.array(image)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
 
-    # Let the user upload a file via `st.file_uploader`.
-    uploaded_file = st.file_uploader(
-        "Upload a document (.txt or .md)", type=("txt", "md")
-    )
+    # Quantize the grayscale image.
+    num_colors = 5
+    gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
+    gray = gray.astype(np.float32) / 255
+    quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
+    quantized = quantized.astype(np.uint8)
+
+    # Display the quantized grayscale image.
+    st.image(quantized, caption='Quantized Grayscale Image.', use_column_width=True)
 
     # Ask the user for a question via `st.text_area`.
     question = st.text_area(
-        "Now ask a question about the document!",
-        placeholder="Can you give me a short summary?",
+        "Now ask a question about the image!",
+        placeholder="Can you describe the image?",
         disabled=not uploaded_file,
     )
 
-    if uploaded_file and question:
-
-        # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
+    if question:
+        # Process the uploaded image and question.
+        image_bytes = uploaded_file.read()
         messages = [
             {
                 "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
+                "content": f"Here's an image: {image_bytes} \n\n---\n\n {question}",
             }
         ]
 
