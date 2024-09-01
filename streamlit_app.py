@@ -10,7 +10,7 @@ import streamlit as st
 from PIL import Image
 import cv2
 import numpy as np
-from skimage.measure import label, regionprops
+from skimage.measure import label, regionprops, marching_cubes
 from skimage import measure, morphology, color
 from skimage.segmentation import find_boundaries
 from pythreejs import *
@@ -65,76 +65,88 @@ if not uploaded_file:
         st.info("Please upload an image to continue.", icon="🖼️")
 else:
     on = st.toggle("Display original image")
-             
+    image = Image.open(uploaded_file)
+    with st.sidebar:
+    #st.image(image, caption='Uploaded Image.', use_column_width=True)
+        num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+    # Slider to control the blurring effect.
+        blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
+        pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+
     if on:
-        with st.sidebar:
+        #with st.sidebar:
         #with col1:
             # Display the uploaded image.
             image = Image.open(uploaded_file)
-            st.image(image, caption='Uploaded Image.', use_column_width=True)
-            st.write(f"Original image dimensions:{0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
+            #st.image(image, caption='Uploaded Image.', use_column_width=True)
+            #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+            # Slider to control the blurring effect.
+            #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
+            #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
         
-        # Slider to control the number of quantization levels.
-        num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-        # Slider to control the blurring effect.
-        blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=20, value=5, step=1)
-        pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
-        # Convert the image to grayscale using OpenCV.
-        img_array = np.array(image)
-        gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+            # Slider to control the number of quantization levels.
+            #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+            # Slider to control the blurring effect.
+            #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=20, value=5, step=1)
+            #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+            # Convert the image to grayscale using OpenCV.
+            img_array = np.array(image)
+            gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
 
-        # Quantize the grayscale image.
-        gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
-        gray = gray.astype(np.float32) / 255
-        quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
-        quantized = quantized.astype(np.uint8)
+            # Quantize the grayscale image.
+            gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
+            gray = gray.astype(np.float32) / 255
+            quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
+            quantized = quantized.astype(np.uint8)
 
-        # Apply blurring to the quantized image.
-        blur1 = cv2.blur(quantized, (blur_ksize, blur_ksize))
-        blur = blur1.astype(np.float32) / 255
-        # Apply morphological operations to smooth the lines.
+            # Apply blurring to the quantized image.
+            blur1 = cv2.blur(quantized, (blur_ksize, blur_ksize))
+            blur = blur1.astype(np.float32) / 255
+            # Apply morphological operations to smooth the lines.
 
 
-        # Re-quantize the blurred image.
-        result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
-        result = result.clip(0, 255).astype(np.uint8)
-        result = replace_small_regions(result, 2**(pixel_value)+10)
+            # Re-quantize the blurred image.
+            result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
+            result = result.clip(0, 255).astype(np.uint8)
+            result = replace_small_regions(result, 2**(pixel_value)+10)
 
-            # Display the quantized and blurred grayscale image
+                # Display the quantized and blurred grayscale image
+                    
+            # Generate bounds
+            lower_bounds = [gray_levels[i] for i in range(num_colors)]
+            upper_bounds = [gray_levels[i] for i in range(num_colors)]
+            st.write(f"Original image dimensions:{0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
+
+            with col1:
+                st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
+            with col2:
+                st.image(image, caption='Uploaded Image.', use_column_width=True)    
+
+
                 
-        # Generate bounds
-        lower_bounds = [gray_levels[i] for i in range(num_colors)]
-        upper_bounds = [gray_levels[i] for i in range(num_colors)]
-
-        #with col2:
-        st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
-            
-
-
-            
     else:
         image = Image.open(uploaded_file)
-        with st.sidebar:
-            num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-            # Slider to control the blurring effect.
-            blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
-            pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+            #with st.sidebar:
+                #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+                # Slider to control the blurring effect.
+                #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
+                #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
 
-        # Convert the image to grayscale using OpenCV.
+            # Convert the image to grayscale using OpenCV.
         img_array = np.array(image)
         gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
 
-        # Quantize the grayscale image.
+            # Quantize the grayscale image.
         gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
         gray = gray.astype(np.float32) / 255
         quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
         quantized = quantized.astype(np.uint8)
 
-        # Apply blurring to the quantized image.
+            # Apply blurring to the quantized image.
         blur1 = cv2.blur(quantized, (blur_ksize, blur_ksize))
         blur = blur1.astype(np.float32) / 255
 
-        # Re-quantize the blurred image.
+            # Re-quantize the blurred image.
         result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
         result = result.clip(0, 255).astype(np.uint8)
         result = replace_small_regions(result, 2**(pixel_value)+10)
@@ -142,6 +154,7 @@ else:
         upper_bounds = [gray_levels[i] for i in range(num_colors)]
         st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
         st.write(f"Original image dimensions: {0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
+    
     col1, col2, col3 = st.columns(3)
 
     on = st.toggle("size")            
@@ -427,40 +440,54 @@ else:
 
 
             # Display the selected option
-            st.write('You selected:', option)
-            # Generate masks
-        masks = []
-        for i in range(num_colors):
-            ret, mask = cv2.threshold(result, lower_bounds[i], lower_bounds[i], cv2.THRESH_BINARY)
-            masks.append(mask > (lower_bounds[i] - 1))
 
-        # Label masks and get region properties
-        labeled_masks = [label(mask) for mask in masks]
-        region_props = [regionprops(labeled_mask) for labeled_mask in labeled_masks]
+# Assuming gray_levels, result, num_colors, and img_array are defined elsewhere in your code
 
-        # Extrude
-        b = np.repeat([bool(1)], img_array.shape[1], axis=0)  # size
-        ba = np.repeat([b], img_array.shape[0], axis=0)
-        base = np.repeat([ba], 10, axis=0)
-        e = np.repeat([bool(0)], img_array.shape[1], axis=0)
-        en = np.repeat([e], img_array.shape[0], axis=0)
-        end = np.repeat([en], 1, axis=0)
-        base1 = np.repeat([en], 1, axis=0)
-        mask_layers = [np.repeat([mask], 1, axis=0) for mask in masks]
-        comb = np.concatenate((base1, base, *mask_layers, end))
-        comb[-1, :, :] = 0
-        comb[:, -1, :] = 0
-        comb[:, :, -1] = 0
-        comb[:, :, 0] = 0
-        comb[:, 0, :] = 0
-        # Button to ask if they want to generate the STL file
-        if st.button("Generate STL file"):
-            # Marching cubes
-            verts, faces, normals, values = measure.marching_cubes(comb)
-            obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-            for i, f in enumerate(faces):
-                obj_3d.vectors[i] = verts[f]
+# Display the selected option
+st.write('You selected:', option)
 
+# Generate masks
+masks = []
+for i in range(num_colors):
+    lower_bound = gray_levels[i]
+    ret, mask = cv2.threshold(result, lower_bound, 255, cv2.THRESH_BINARY)
+    masks.append(mask > (lower_bound - 1))
+    st.image(mask, caption=f'Mask {i}', use_column_width=True)
 
+# Label masks and get region properties
+labeled_masks = [label(mask) for mask in masks]
+region_props = [regionprops(labeled_mask) for labeled_mask in labeled_masks]
 
-            st.write_stream(stream)
+# Extrude
+b = np.repeat([True], img_array.shape[1], axis=0)  # size
+ba = np.repeat([b], img_array.shape[0], axis=0)
+base = np.repeat([ba], 10, axis=0)
+e = np.repeat([False], img_array.shape[1], axis=0)
+en = np.repeat([e], img_array.shape[0], axis=0)
+end = np.repeat([en], 1, axis=0)
+base1 = np.repeat([en], 1, axis=0)
+mask_layers = [np.repeat([mask], 1, axis=0) for mask in masks]
+comb = np.concatenate((base1, base, *mask_layers, end))
+comb[-1, :, :] = 0
+comb[:, -1, :] = 0
+comb[:, :, -1] = 0
+comb[:, :, 0] = 0
+comb[:, 0, :] = 0
+
+# Button to ask if they want to generate the STL file
+if st.button("Generate STL file"):
+    # Marching cubes
+    verts, faces, normals, values = marching_cubes(comb)
+    obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            obj_3d.vectors[i][j] = verts[f[j], :]
+    stl_io = BytesIO()
+    obj_3d.save(stl_io)
+    stl_io.seek(0)
+    st.download_button(
+        label="Download STL file"
+    )
+    # Save the STL file
+    obj_3d.save('output.stl')
+    st.success("STL file generated successfully!")
