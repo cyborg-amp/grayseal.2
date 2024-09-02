@@ -16,6 +16,7 @@ from skimage.segmentation import find_boundaries
 from pythreejs import *
 import ipywidgets as widgets
 import io
+from io import BytesIO
 
 st.set_page_config(layout="wide")
 def replace_small_regions(image, min_area):
@@ -444,50 +445,95 @@ else:
 # Assuming gray_levels, result, num_colors, and img_array are defined elsewhere in your code
 
 # Display the selected option
-st.write('You selected:', option)
+#st.write('You selected:', option)
 
 # Generate masks
-masks = []
-for i in range(num_colors):
-    lower_bound = gray_levels[i]
-    ret, mask = cv2.threshold(result, lower_bound, 255, cv2.THRESH_BINARY)
-    masks.append(mask > (lower_bound - 1))
-    st.image(mask, caption=f'Mask {i}', use_column_width=True)
+            masks = []
+            for i in range(num_colors):
+                lower_bound = gray_levels[i]
+                ret, mask = cv2.threshold(result, lower_bound, 255, cv2.THRESH_BINARY)
+                masks.append(mask > (lower_bound - 1))
+                st.image(mask, caption=f'Mask {i}', use_column_width=True)
 
-# Label masks and get region properties
-labeled_masks = [label(mask) for mask in masks]
-region_props = [regionprops(labeled_mask) for labeled_mask in labeled_masks]
+            # Label masks and get region properties
+            labeled_masks = [label(mask) for mask in masks]
+            region_props = [regionprops(labeled_mask) for labeled_mask in labeled_masks]
 
-# Extrude
-b = np.repeat([True], img_array.shape[1], axis=0)  # size
-ba = np.repeat([b], img_array.shape[0], axis=0)
-base = np.repeat([ba], 10, axis=0)
-e = np.repeat([False], img_array.shape[1], axis=0)
-en = np.repeat([e], img_array.shape[0], axis=0)
-end = np.repeat([en], 1, axis=0)
-base1 = np.repeat([en], 1, axis=0)
-mask_layers = [np.repeat([mask], 1, axis=0) for mask in masks]
-comb = np.concatenate((base1, base, *mask_layers, end))
-comb[-1, :, :] = 0
-comb[:, -1, :] = 0
-comb[:, :, -1] = 0
-comb[:, :, 0] = 0
-comb[:, 0, :] = 0
+            # Extrude
+            b = np.repeat([True], img_array.shape[1], axis=0)  # size
+            ba = np.repeat([b], img_array.shape[0], axis=0)
+            base = np.repeat([ba], 10, axis=0)
+            e = np.repeat([False], img_array.shape[1], axis=0)
+            en = np.repeat([e], img_array.shape[0], axis=0)
+            end = np.repeat([en], 1, axis=0)
+            base1 = np.repeat([en], 1, axis=0)
+            mask_layers = [np.repeat([mask], 1, axis=0) for mask in masks]
+            if mask_layers:
+                mask_layers[-1] = np.repeat([mask_layers[-1][0]], 3, axis=0)    
+            comb = np.concatenate((base1, base, *mask_layers, end))
+            comb[-1, :, :] = 0
+            comb[:, -1, :] = 0
+            comb[:, :, -1] = 0
+            comb[:, :, 0] = 0
+            comb[:, 0, :] = 0
 
-# Button to ask if they want to generate the STL file
-if st.button("Generate STL file"):
-    # Marching cubes
-    verts, faces, normals, values = marching_cubes(comb)
-    obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-    for i, f in enumerate(faces):
-        for j in range(3):
-            obj_3d.vectors[i][j] = verts[f[j], :]
-    stl_io = BytesIO()
-    obj_3d.save(stl_io)
-    stl_io.seek(0)
-    st.download_button(
-        label="Download STL file"
-    )
-    # Save the STL file
-    obj_3d.save('output.stl')
-    st.success("STL file generated successfully!")
+            # Button to ask if they want to generate the STL file
+            if st.button("Generate STL file"):
+                # Marching cubes
+                import tempfile
+
+# Marching cubes
+                verts, faces, normals, values = marching_cubes(comb)
+                obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+                for i, f in enumerate(faces):
+                    for j in range(3):
+                        obj_3d.vectors[i][j] = verts[f[j], :]
+
+                rotation_y = np.array([
+                        [np.cos(np.radians(90)), 0, np.sin(np.radians(90))],
+                        [0, 1, 0],
+                        [-np.sin(np.radians(90)), 0, np.cos(np.radians(90))]
+                    ])
+                
+                rotation_z = np.array([
+                        [np.cos(np.radians(180)), -np.sin(np.radians(180)), 0],
+                        [np.sin(np.radians(180)), np.cos(np.radians(180)), 0],
+                        [0, 0, 1]
+                    ])
+
+                    # Apply rotations
+                for i in range(len(obj_3d.vectors)):
+                    obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_y)
+                    obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_z)
+
+                # Define scaling factors for x and y
+                scale_x = 0.1  # Example scaling factor for x
+                scale_y = 0.1  # Example scaling factor for y
+
+                # Apply scaling to x and y coordinates
+                for i in range(len(obj_3d.vectors)):
+                    for j in range(3):
+                        obj_3d.vectors[i][j][0] *= scale_x
+                        obj_3d.vectors[i][j][1] *= scale_y
+
+                
+                # Save the STL file to a temporary file
+                with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                    obj_3d.save(tmp_file.name)
+                    tmp_file.seek(0)
+                    stl_data = tmp_file.read()
+
+                # Create a BytesIO object from the temporary file data
+                stl_io = BytesIO(stl_data)
+
+                # Create a download button
+                st.download_button(
+                    label="Download STL file",
+                    data=stl_io,
+                    file_name="output.stl",
+                    mime="application/octet-stream"
+                )
+
+                # Save the STL file locally
+                obj_3d.save('output.stl')
+                st.success("STL file generated successfully!")
