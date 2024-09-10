@@ -17,11 +17,45 @@ from pythreejs import *
 import ipywidgets as widgets
 import io
 from io import BytesIO
+import time
+from collections import deque
 
 st.set_page_config(layout="wide")
-def replace_small_regions(image, min_area):
+
+def quantize_image(_image, num_colors):
+    # Convert the image to grayscale using OpenCV.
+    img_array = np.array(_image)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+
+    # Quantize the grayscale image.
+    gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
+    gray = gray.astype(np.float32) / 255
+    quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
+    quantized = quantized.astype(np.uint8)
+
+    return quantized, gray_levels
+
+#@st.cache_data
+def blur_image(_quantized_image, blur_ksize, num_colors):
+    # Apply blurring to the quantized image.
+    blur1 = cv2.blur(_quantized_image, (blur_ksize, blur_ksize))
+    blur = blur1.astype(np.float32) / 255
+
+    # Re-quantize the blurred image.
+    result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
+    result = result.clip(0, 255).astype(np.uint8)
+
+    return result
+
+
+
+def replace_small_regions(_image, min_area):
+    # Convert the image to a NumPy array if it is not already.
+    if not isinstance(_image, np.ndarray):
+        _image = np.array(_image)
+
     # Label the connected regions
-    labeled_image, num_labels = measure.label(image, connectivity=2, return_num=True)
+    labeled_image, num_labels = measure.label(_image, connectivity=2, return_num=True)
 
     # Get region properties
     regions = measure.regionprops(labeled_image)
@@ -29,34 +63,61 @@ def replace_small_regions(image, min_area):
     # Create a mask for small regions
     small_regions_mask = np.zeros_like(labeled_image, dtype=bool)
 
+    # Mark small regions in the mask
     for region in regions:
         if region.area < min_area:
-            small_regions_mask[labeled_image == region.label] = True
+            for coord in region.coords:
+                small_regions_mask[coord[0], coord[1]] = True
 
-    # Replace small regions with the color of adjacent areas
-    result_image = image.copy()
+    # Replace small regions with the color of the nearest non-small region pixel
+    result_image = _image.copy()
     for region in regions:
         if region.area < min_area:
-            coords = region.coords
-            for coord in coords:
+            for coord in region.coords:
                 x, y = coord
-                # Find the nearest non-small region pixel
-                for dx in range(-5, 5):
-                    for dy in range(-5, 5):
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < image.shape[0] and 0 <= ny < image.shape[1] and not small_regions_mask[nx, ny]:
-                            result_image[x, y] = image[nx, ny]
-                            break
+                # Use BFS to find the nearest non-small region pixel
+                queue = deque([(x, y)])
+                visited = set()
+                found = False
+                while queue and not found:
+                    cx, cy = queue.popleft()
+                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < _image.shape[0] and 0 <= ny < _image.shape[1] and (nx, ny) not in visited:
+                            if not small_regions_mask[nx, ny]:
+                                result_image[x, y] = _image[nx, ny]
+                                found = True
+                                break
+                            queue.append((nx, ny))
+                            visited.add((nx, ny))
 
     return result_image
 
+def crop_image(image, width_percentage, height_percentage):
+    # Calculate crop dimensions
+    width, height = image.size
+    new_width = int(width * width_percentage / 100)
+    new_height = int(height * height_percentage / 100)
+    
+    # Calculate the crop box (center crop)
+    left = (width - new_width) / 2
+    top = (height - new_height) / 2
+    right = (width + new_width) / 2
+    bottom = (height + new_height) / 2
+    
+    # Crop the image
+    cropped_image = image.crop((left, top, right, bottom))
+    
+    return cropped_image
 
 st.title("Image to Stl Printer")
 st.write("Upload an image below and convert it to a black and gray 3D printable stl file.")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="image_uploader")
 
 
-col1, col2, = st.columns(2)
+
+
+col1, col2 = st.columns(2)
 
 
 # Let the user upload an image file via `st.file_uploader`.
@@ -65,51 +126,31 @@ if not uploaded_file:
     with col1:
         st.info("Please upload an image to continue.", icon="🖼️")
 else:
-    on = st.toggle("Display original image")
+    on = st.toggle("Display original image", help="Display original image side by side")
     image = Image.open(uploaded_file)
     with st.sidebar:
     #st.image(image, caption='Uploaded Image.', use_column_width=True)
-        num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+                num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
     # Slider to control the blurring effect.
-        blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
-        pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+                blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)    
+                pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+                width_percentage = st.slider("Select width percentage", min_value=1, max_value=100, value=100)
+                height_percentage = st.slider("Select height percentage", min_value=1, max_value=100, value=100)
+                #min_area = st.slider("Select minimum area for small regions", min_value=1, max_value=100, value=10)
 
     if on:
         #with st.sidebar:
         #with col1:
             # Display the uploaded image.
-            image = Image.open(uploaded_file)
-            #st.image(image, caption='Uploaded Image.', use_column_width=True)
-            #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-            # Slider to control the blurring effect.
-            #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
-            #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
-        
-            # Slider to control the number of quantization levels.
-            #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-            # Slider to control the blurring effect.
-            #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=20, value=5, step=1)
-            #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
-            # Convert the image to grayscale using OpenCV.
-            img_array = np.array(image)
-            gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+            #original_width, original_height = image.size
+            quantized_image, gray_levels = quantize_image(image, num_colors)
+            result = blur_image(quantized_image, blur_ksize, num_colors)
+            result = replace_small_regions(result, 3**(pixel_value)+10)
+            result = Image.fromarray(result)
 
-            # Quantize the grayscale image.
-            gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
-            gray = gray.astype(np.float32) / 255
-            quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
-            quantized = quantized.astype(np.uint8)
-
-            # Apply blurring to the quantized image.
-            blur1 = cv2.blur(quantized, (blur_ksize, blur_ksize))
-            blur = blur1.astype(np.float32) / 255
-            # Apply morphological operations to smooth the lines.
-
-
-            # Re-quantize the blurred image.
-            result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
-            result = result.clip(0, 255).astype(np.uint8)
-            result = replace_small_regions(result, 2**(pixel_value)+10)
+            result = crop_image(result, width_percentage,height_percentage)
+            #result.resize((original_width, original_height),Image.ANTIALIAS)
+            result = np.array(result)
 
                 # Display the quantized and blurred grayscale image
                     
@@ -127,39 +168,32 @@ else:
                 
     else:
         image = Image.open(uploaded_file)
-            #with st.sidebar:
-                #num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-                # Slider to control the blurring effect.
-                #blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)
-                #pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+        #original_width, original_height = image.size
+
 
             # Convert the image to grayscale using OpenCV.
-        img_array = np.array(image)
-        gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+        quantized_image, gray_levels = quantize_image(image, num_colors)
+        result = blur_image(quantized_image, blur_ksize, num_colors)
+        result = replace_small_regions(result, 3**(pixel_value)+10)
+        result = Image.fromarray(result)
 
-            # Quantize the grayscale image.
-        gray_levels = [255 * (i + 0.5) / num_colors for i in range(num_colors)]
-        gray = gray.astype(np.float32) / 255
-        quantized = 255 * np.floor(gray * num_colors + 0.5) / num_colors
-        quantized = quantized.astype(np.uint8)
+        result = crop_image(result, width_percentage,height_percentage)
+        #result.resize((original_width, original_height),Image.ANTIALIAS)
 
-            # Apply blurring to the quantized image.
-        blur1 = cv2.blur(quantized, (blur_ksize, blur_ksize))
-        blur = blur1.astype(np.float32) / 255
+        result = np.array(result)
 
-            # Re-quantize the blurred image.
-        result = 255 * np.floor(blur * num_colors + 0.5) / num_colors
-        result = result.clip(0, 255).astype(np.uint8)
-        result = replace_small_regions(result, 2**(pixel_value)+10)
+
         lower_bounds = [gray_levels[i] for i in range(num_colors)]
         upper_bounds = [gray_levels[i] for i in range(num_colors)]
         st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
         st.write(f"Original image dimensions: {0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
     
-    col1, col2, col3 = st.columns(3)
 
-    on = st.toggle("size")            
-    if on:
+    #on = st.toggle("size")            
+    #if on:
+    with st.expander("Size"):
+        col1, col2, col3 = st.columns(3)
+
     # Add a selectbox for choosing options
         with col1:
             option = st.selectbox(
@@ -433,8 +467,10 @@ else:
             else:
                 with col2:
                     scale = st.slider("Scale", 1, 400, value=100, step=1,format="%d%%")
+                    larger = 10
+                    largerv=1
                     width = scale * 0.001 * image.size[0]
-                    height = scale * 0.01 * image.size[1]
+                    height = scale * 0.001 * image.size[1]
                     st.write(f"Modified Dimensions:")
                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -453,30 +489,36 @@ else:
                 lower_bound = gray_levels[i]
                 ret, mask = cv2.threshold(result, lower_bound, 255, cv2.THRESH_BINARY)
                 masks.append(mask > (lower_bound - 1))
-                st.image(mask, caption=f'Mask {i}', use_column_width=True)
+                #st.image(mask, caption=f'Mask {i}', use_column_width=True)
 
             # Label masks and get region properties
             labeled_masks = [label(mask) for mask in masks]
             region_props = [regionprops(labeled_mask) for labeled_mask in labeled_masks]
 
             # Extrude
+            img_array = np.array(result)
             b = np.repeat([True], img_array.shape[1], axis=0)  # size
             ba = np.repeat([b], img_array.shape[0], axis=0)
+            #with col3:
+                #repeat_option = st.selectbox('Select base levels:',[1,5,10,15,20],index=1,help="Number of layers of black at the bottom. Recommended 5.")
             base = np.repeat([ba], 10, axis=0)
             e = np.repeat([False], img_array.shape[1], axis=0)
             en = np.repeat([e], img_array.shape[0], axis=0)
             end = np.repeat([en], 1, axis=0)
-            base1 = np.repeat([en], 1, axis=0)
+            #base1 = np.repeat([en], 1, axis=0)
             mask_layers = [np.repeat([mask], 1, axis=0) for mask in masks]
             if mask_layers:
                 mask_layers[-1] = np.repeat([mask_layers[-1][0]], 3, axis=0)    
-            comb = np.concatenate((base1, base, *mask_layers, end))
+            comb = np.concatenate((end, base, *mask_layers, end),)
             comb[-1, :, :] = 0
             comb[:, -1, :] = 0
             comb[:, :, -1] = 0
             comb[:, :, 0] = 0
             comb[:, 0, :] = 0
+            
 
+            #st.write(comb.shape)
+            col1, col2= st.columns(2)
             # Button to ask if they want to generate the STL file
             if st.button("Generate STL file"):
                 # Marching cubes
@@ -506,15 +548,23 @@ else:
                     obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_y)
                     obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_z)
 
-                # Define scaling factors for x and y
-                scale_x = 0.1  # Example scaling factor for x
-                scale_y = 0.1  # Example scaling factor for y
+                    # Define scaling factors for x and y
+                    #scale_x = 0.1  # Example scaling factor for x
+                    #scale_y = 0.1  # Example scaling factor for y
+                num_colour = len(masks)  # Example definition
+                z_value = (num_colour + 12) * 0.08
 
-                # Apply scaling to x and y coordinates
+                    # Apply scaling to x and y coordinates
                 for i in range(len(obj_3d.vectors)):
+                    #larger = max(image.size[0], image.size[1])
+                    #largerv = max(volume[0], volume[1])
+                    width = scale * 0.01 * largerv / larger 
+                    height = scale * 0.01 * largerv / larger 
                     for j in range(3):
-                        obj_3d.vectors[i][j][0] *= scale_x
-                        obj_3d.vectors[i][j][1] *= scale_y
+                        obj_3d.vectors[i][j][0] *= width
+                        obj_3d.vectors[i][j][1] *= height
+                        obj_3d.vectors[i][j][2] = (obj_3d.vectors[i][j][2] - 2) * 0.08  # Subtract 2 and then multiply by 0.08
+                st.write(width, height,z_value)
 
                 
                 # Save the STL file to a temporary file
@@ -522,18 +572,21 @@ else:
                     obj_3d.save(tmp_file.name)
                     tmp_file.seek(0)
                     stl_data = tmp_file.read()
+                    file_size = os.path.getsize(tmp_file.name)
+                    st.success(f"STL file generated: {tmp_file.name}")
+                    st.write(f"File size: {file_size} bytes")
 
                 # Create a BytesIO object from the temporary file data
-                stl_io = BytesIO(stl_data)
+                    stl_io = BytesIO(stl_data)
 
                 # Create a download button
-                st.download_button(
-                    label="Download STL file",
-                    data=stl_io,
-                    file_name="output.stl",
-                    mime="application/octet-stream"
-                )
+                    st.download_button(
+                        label="Download STL file",
+                        data=stl_io,
+                        file_name="output.stl",
+                        mime="application/octet-stream"
+                    )
 
-                # Save the STL file locally
-                obj_3d.save('output.stl')
-                st.success("STL file generated successfully!")
+                    # Save the STL file locally
+                    obj_3d.save('output.stl')
+                    st.success("STL file generated successfully!")
