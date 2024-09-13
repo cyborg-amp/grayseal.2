@@ -22,6 +22,18 @@ from collections import deque
 
 st.set_page_config(layout="wide")
 
+rotation_y = np.array([
+        [np.cos(np.radians(90)), 0, np.sin(np.radians(90))],
+        [0, 1, 0],
+        [-np.sin(np.radians(90)), 0, np.cos(np.radians(90))]
+    ])
+
+rotation_z = np.array([
+        [np.cos(np.radians(180)), -np.sin(np.radians(180)), 0],
+        [np.sin(np.radians(180)), np.cos(np.radians(180)), 0],
+        [0, 0, 1]
+    ])
+
 def quantize_image(_image, num_colors):
     # Convert the image to grayscale using OpenCV.
     img_array = np.array(_image)
@@ -157,7 +169,7 @@ else:
             # Generate bounds
             lower_bounds = [gray_levels[i] for i in range(num_colors)]
             upper_bounds = [gray_levels[i] for i in range(num_colors)]
-            st.write(f"Original image dimensions:{0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
+            st.write(f"Original image dimensions:{0.1*result.shape[1]:.1f}mm x {0.1*result.shape[0]:.1f}mm")
 
             with col1:
                 st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
@@ -182,11 +194,10 @@ else:
 
         result = np.array(result)
 
-
         lower_bounds = [gray_levels[i] for i in range(num_colors)]
         upper_bounds = [gray_levels[i] for i in range(num_colors)]
         st.image(result, caption='Quantized and Blurred Grayscale Image.', use_column_width=True)
-        st.write(f"Original image dimensions: {0.1*image.size[0]}mm x {0.1*image.size[1]}mm")
+        st.write(f"Original image dimensions: {0.1*result.shape[1]:.1f}mm x {0.1*result.shape[0]:.1f}mm")
     
 
     #on = st.toggle("size")            
@@ -231,10 +242,10 @@ else:
                                         volume = (256, 256)
                                     
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%", help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
                             
@@ -259,10 +270,10 @@ else:
                                         volume = (250, 210)
                                     
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
                                 
@@ -279,10 +290,10 @@ else:
                                         volume = (235, 235)
 
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -326,10 +337,10 @@ else:
                                     elif select_option == 'Anycubic Kobra 3':
                                         volume = (220, 220)
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -377,10 +388,10 @@ else:
                                     elif select_option == 'K1 SE':
                                         volume = (220, 220)
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
                             elif checkbox_option == 'Ultimaker':
@@ -403,10 +414,10 @@ else:
                                     elif select_option == 'Ultimaker Method XL':
                                         volume = (305, 305)
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -435,10 +446,10 @@ else:
                                         volume = (220, 220)
 
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%",help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
                         
@@ -457,10 +468,10 @@ else:
                                         volume = (330, 250)
 
                                     scale = st.slider("Scale", 1, 100, value=100, step=1, format="%d%%", help="100% fills the build plate.")
-                                    larger = max(image.size[0], image.size[1])
+                                    larger = max(result.shape[0], result.shape[1])
                                     largerv = max(volume[0], volume[1])
-                                    width = scale * 0.01 * largerv / larger * image.size[0]
-                                    height = scale * 0.01 * largerv / larger * image.size[1]
+                                    width = scale * 0.01 * largerv / larger * result.shape[1]
+                                    height = scale * 0.01 * largerv / larger * result.shape[0]
                                     st.write("Modified Dimensions:")
                                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -469,8 +480,8 @@ else:
                     scale = st.slider("Scale", 1, 400, value=100, step=1,format="%d%%")
                     larger = 10
                     largerv=1
-                    width = scale * 0.001 * image.size[0]
-                    height = scale * 0.001 * image.size[1]
+                    width = scale * 0.001 * result.shape[1]
+                    height = scale * 0.001 * result.shape[0]
                     st.write(f"Modified Dimensions:")
                     st.write(f"{width:.1f}mm x {height:.1f}mm")
 
@@ -531,17 +542,7 @@ else:
                     for j in range(3):
                         obj_3d.vectors[i][j] = verts[f[j], :]
 
-                rotation_y = np.array([
-                        [np.cos(np.radians(90)), 0, np.sin(np.radians(90))],
-                        [0, 1, 0],
-                        [-np.sin(np.radians(90)), 0, np.cos(np.radians(90))]
-                    ])
-                
-                rotation_z = np.array([
-                        [np.cos(np.radians(180)), -np.sin(np.radians(180)), 0],
-                        [np.sin(np.radians(180)), np.cos(np.radians(180)), 0],
-                        [0, 0, 1]
-                    ])
+
 
                     # Apply rotations
                 for i in range(len(obj_3d.vectors)):
