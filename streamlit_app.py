@@ -490,10 +490,8 @@ else:
             # Display the selected option
 
 # Assuming gray_levels, result, num_colors, and img_array are defined elsewhere in your code
-
 # Display the selected option
 #st.write('You selected:', option)
-
 # Generate masks
             masks = []
             for i in range(num_colors):
