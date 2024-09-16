@@ -136,9 +136,6 @@ def calculate_and_display_dimensions(result, volume):
     b=height/result.shape[0]
     return a,b
 
-import numpy as np
-import cv2
-from skimage.measure import label, regionprops
 
 def process_image(result, gray_levels, num_colors, base_layers=10):
     masks = []
@@ -196,38 +193,19 @@ else:
     with st.sidebar:
     #st.image(image, caption='Uploaded Image.', use_column_width=True)
         on = st.toggle("Display original image", help="Display original image side by side")
-
-        num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
-    # Slider to control the blurring effect.
-        blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)    
-        pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
         width_percentage = st.slider("Select width percentage", min_value=1, max_value=100, value=100)
         height_percentage = st.slider("Select height percentage", min_value=1, max_value=100, value=100)
-        #min_area = st.slider("Select minimum area for small regions", min_value=1, max_value=100, value=10)
-
-    #if on:
-        #with st.sidebar:
-        #with col1:
-            # Display the uploaded image.
-            #original_width, original_height = image.size
-
         result= crop_image(image,width_percentage, height_percentage)
         result= np.array(result)
-
+        num_colors = st.slider("Select number of quantization levels", min_value=1, max_value=10, value=5)
+    # Slider to control the blurring effect.
         quantized_image, gray_levels = quantize_image(result, num_colors)
+        blur_ksize = st.slider("Select blurring kernel size", min_value=1, max_value=15, value=5, step=1)    
         result = blur_image(quantized_image, blur_ksize, num_colors)
-        result = replace_small_regions(result, 2.5**(pixel_value)+10)
-        #result = Image.fromarray(result)
+        pixel_value = st.slider("Select pixel value", min_value=1, max_value=10, value=1, step=1)
+        
+        result = replace_small_regions(result, 2**(pixel_value)+10)
 
-        #result = crop_image(result, width_percentage,height_percentage)
-        #result.resize((original_width, original_height),Image.ANTIALIAS)
-        #result = np.array(result)
-
-            # Display the quantized and blurred grayscale image
-                
-        # Generate bounds
-        #lower_bounds = [gray_levels[i] for i in range(num_colors)]
-        #upper_bounds = [gray_levels[i] for i in range(num_colors)]
         st.write(f"Original image dimensions:{0.1*result.shape[1]:.1f}mm x {0.1*result.shape[0]:.1f}mm")
 
         #on = st.toggle("Display original image", help="Display original image side by side")
