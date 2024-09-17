@@ -1,24 +1,18 @@
-import select
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
+#import select
+#import matplotlib.image as mpimg
+#import matplotlib.pyplot as plt
 from networkx import sigma
 from skimage import io
-from mpl_toolkits.mplot3d import Axes3D
-import cv2 as cv2
+#from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from stl import mesh
 import streamlit as st
 from PIL import Image
 import cv2
-import numpy as np
 from skimage.measure import label, regionprops, marching_cubes
-from skimage import measure, morphology, color
-from skimage.segmentation import find_boundaries
+from skimage import measure
 from pythreejs import *
-import ipywidgets as widgets
-import io
 from io import BytesIO
-import time
 from collections import deque
 
 st.set_page_config(layout="wide")
@@ -166,7 +160,62 @@ def process_image(result, gray_levels, num_colors, base_layers=10):
     comb[:, :, 0] = 0
     comb[:, 0, :] = 0
     z=len(masks)
-    return comb, labeled_masks, region_props, z
+    return comb, z
+
+# Function to generate STL file
+
+def generate_stl_file(comb, a, b, z, rotation_y, rotation_z):
+    import tempfile
+    # Generate the 3D mesh using marching cubes
+    verts, faces, normals, values = marching_cubes(comb)
+    obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            obj_3d.vectors[i][j] = verts[f[j], :]
+
+    # Apply rotations
+    for i in range(len(obj_3d.vectors)):
+        obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_y)
+        obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_z)
+
+    # Define scaling factors for x and y
+    num_colour = z  # Example definition
+    z_value = (num_colour + 12) * 0.08
+
+    # Apply scaling to x and y coordinates
+    for i in range(len(obj_3d.vectors)):
+        for j in range(3):
+            obj_3d.vectors[i][j][0] *= a
+            obj_3d.vectors[i][j][1] *= b
+            obj_3d.vectors[i][j][2] = (obj_3d.vectors[i][j][2] - 2) * 0.08  # Subtract 2 and then multiply by 0.08
+
+    st.write(a, b, z_value)
+
+    # Save the STL file to a temporary file
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        obj_3d.save(tmp_file.name)
+        tmp_file.seek(0)
+        stl_data = tmp_file.read()
+        #file_size = os.path.getsize(tmp_file.name)
+        st.success(f"STL file generated: {tmp_file.name}")
+        #st.write(f"File size: {file_size} bytes")
+
+    # Create a BytesIO object from the temporary file data
+    stl_io = BytesIO(stl_data)
+
+    # Create a download button
+    st.download_button(
+        label="Download STL file",
+        data=stl_io,
+        file_name="output.stl",
+        mime="application/octet-stream"
+    )
+
+    # Save the STL file locally
+    obj_3d.save('output.stl')
+    st.success("STL file generated successfully!")
+
+# Main Streamlit app code
 
 # Example usage
 
@@ -421,59 +470,40 @@ else:
 
             #st.write(comb.shape)
             col1, col2= st.columns(2)
-            comb, labeled_masks, region_props,z = process_image(result, gray_levels, num_colors)
-                # Button to ask if they want to generate the STL file
-            if st.button("Generate STL file"):
-                # Marching cubes
-                import tempfile
+            comb,z = process_image(result, gray_levels, num_colors)
 
-                # Generate the 3D mesh using marching cubes
-                verts, faces, normals, values = marching_cubes(comb)
-                obj_3d = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-                for i, f in enumerate(faces):
-                    for j in range(3):
-                        obj_3d.vectors[i][j] = verts[f[j], :]
+            # Process the image and get the necessary variables
+            if st.button("Cache Values"):
+                # Cache the values
+                st.session_state.cached_values = {
+                    "comb": comb,
+                    "a": a,
+                    "b": b,
+                    "z": z,
+                    "rotation_y": rotation_y,
+                    "rotation_z": rotation_z
+                }
+                st.session_state.values_cached = True
+                st.write("Values cached successfully!")
+                if st.session_state.get("values_cached", False):
+                    @st.fragment
+                    def generate_stl_fragment():
+                        if st.session_state.get("values_cached", False):
+                            if st.button("Generate STL file from Cached Values"):
+                                if "cached_values" in st.session_state:
+                                    cached_values = st.session_state.cached_values
+                                    generate_stl_file(
+                                        cached_values["comb"],
+                                        cached_values["a"],
+                                        cached_values["b"],
+                                        cached_values["z"],
+                                        cached_values["rotation_y"],
+                                        cached_values["rotation_z"]
+                                    )
+                                else:
+                                    st.error("No cached values found. Please cache the values first.")
+                        else:
+                            st.info("Please cache the values first to enable STL file generation.")
+            
+                generate_stl_fragment()
 
-                # Apply rotations
-                for i in range(len(obj_3d.vectors)):
-                    obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_y)
-                    obj_3d.vectors[i] = np.dot(obj_3d.vectors[i], rotation_z)
-
-                # Define scaling factors for x and y
-                num_colour = z  # Example definition
-                z_value = (num_colour + 12) * 0.08
-                #width = scale * 0.01 * largerv / larger
-                #height = scale * 0.01 * largerv / larger
-
-                # Apply scaling to x and y coordinates
-                for i in range(len(obj_3d.vectors)):
-                    for j in range(3):
-                        obj_3d.vectors[i][j][0] *= a
-                        obj_3d.vectors[i][j][1] *= b
-                        obj_3d.vectors[i][j][2] = (obj_3d.vectors[i][j][2] - 2) * 0.08  # Subtract 2 and then multiply by 0.08
-
-                st.write(a, b, z_value)
-
-                # Save the STL file to a temporary file
-                with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                    obj_3d.save(tmp_file.name)
-                    tmp_file.seek(0)
-                    stl_data = tmp_file.read()
-                    file_size = os.path.getsize(tmp_file.name)
-                    st.success(f"STL file generated: {tmp_file.name}")
-                    st.write(f"File size: {file_size} bytes")
-
-                # Create a BytesIO object from the temporary file data
-                stl_io = BytesIO(stl_data)
-
-                # Create a download button
-                st.download_button(
-                    label="Download STL file",
-                    data=stl_io,
-                    file_name="output.stl",
-                    mime="application/octet-stream"
-                )
-
-                # Save the STL file locally
-                obj_3d.save('output.stl')
-                st.success("STL file generated successfully!")
