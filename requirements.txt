@@ -1,2 +1,6 @@
+numpy
 streamlit
-openai
+pillow
+opencv-python==4.10.0.84
+scikit-image
+numpy-stl
