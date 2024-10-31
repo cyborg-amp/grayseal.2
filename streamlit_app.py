@@ -4,7 +4,6 @@ from PIL import Image
 import cv2
 from skimage.measure import label, regionprops, marching_cubes
 from skimage import measure
-from pythreejs import *
 from io import BytesIO
 from collections import deque
 from stl import mesh
