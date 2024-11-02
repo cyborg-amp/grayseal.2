@@ -2,7 +2,8 @@
 
 A web-based application for converting images into STL files, ready for 3D printing in black and white. This app provides flexible control over image processing settings, enabling customized prints with variable shading and depth.
 
-Here is the site : [grayseal.streamlit.app](grayseal.streamlit.app)
+Here is the site : [Grayseal](https://github.com/yourusername/grayseal/branch2/path/to/grayseal.streamlit.app)
+
 
 ## Table of Contents
 - [Description](#description)
