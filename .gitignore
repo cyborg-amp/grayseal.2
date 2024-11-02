@@ -7,32 +7,9 @@ __pycache__/
 
 # C extensions
 *.so
-# Ignore Python bytecode files
-__pycache__/
-*.py[cod]
-
-# Ignore virtual environment directories
-venv/
-.env/
-
-# Ignore Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Ignore system files
-.DS_Store
-Thumbs.db
-
-# Ignore log files
-*.log
-
-# Ignore large files managed by Git LFS
+*.stl
 *.png
 *.jpg
-*.jpeg
-*.gif
-*.mp4
-*.mkv
-*.stl
 # Distribution / packaging
 .Python
 build/
