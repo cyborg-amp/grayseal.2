@@ -19,11 +19,11 @@ This application allows users to upload an image, which is then processed into a
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/image-to-stl.git
+    git clone https://github.com/cyborg-amp/grayseal.2.git
     ```
 2. Navigate into the project directory:
     ```bash
-    cd image-to-stl
+    cd grayseal.2
     ```
 3. Install the required dependencies:
     ```bash
